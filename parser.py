@@ -1,3 +1,4 @@
+
 import re
 
 def clean(response):
@@ -10,7 +11,9 @@ def clean(response):
         .replace("\n", "")
         .replace(">", "")
         .strip())
-    return response if response else None
+    if not response or response.upper() == "UNKNOWN":
+        return None
+    return response
 
 
 def parse_position(response, axis):
@@ -24,7 +27,25 @@ def parse_position(response, axis):
 
 
 def parse_responses(raw):
-    data = {}
+    data = {
+        "serial_number": None,
+        "software_ver": None,
+        "mode": None,
+        "tool_changes": None,
+        "current_tool": None,
+        "power_on_time": None,
+        "cycle_start_time": None,
+        "program": None,
+        "program_status": None,
+        "parts_count": None,
+        "x_position": None,
+        "y_position": None,
+        "z_position": None,
+        "a_position": None,
+        "b_position": None,
+        "spindle_speed": None,
+        "feed_rate": None,
+    }
 
     for qcode, raw_response in raw.items():
         r = clean(raw_response)
@@ -33,36 +54,39 @@ def parse_responses(raw):
 
         if qcode == "Q100":
             m = re.search(r"S/N,\s*(\d+)", r)
-            if m:
-                data["serial_number"] = m.group(1)
+            if m: data["serial_number"] = m.group(1)
+
+        elif qcode == "Q101":
+            m = re.search(r"SOFTWARE,\s*VER\s*(\S+)", r)
+            if m: data["software_ver"] = m.group(1)
 
         elif qcode == "Q104":
             m = re.search(r"MODE,\s*\((.+?)\)", r)
-            if m:
-                data["mode"] = m.group(1)
+            if m: data["mode"] = m.group(1)
 
         elif qcode == "Q200":
             m = re.search(r"TOOL CHANGES,\s*(\d+)", r)
-            if m:
-                data["tool_changes"] = int(m.group(1))
+            if m: data["tool_changes"] = int(m.group(1))
 
         elif qcode == "Q201":
             m = re.search(r"USING TOOL,\s*(\d+)", r)
-            if m:
-                data["current_tool"] = int(m.group(1))
+            if m: data["current_tool"] = int(m.group(1))
+
+        elif qcode == "Q300":
+            m = re.search(r"P\.O\. TIME,\s*([\d:]+)", r)
+            if m: data["power_on_time"] = m.group(1)
 
         elif qcode == "Q301":
             m = re.search(r"C\.S\. TIME,\s*([\d:]+)", r)
-            if m:
-                data["cycle_start_time"] = m.group(1)
+            if m: data["cycle_start_time"] = m.group(1)
 
         elif qcode == "Q500":
             m = re.search(
-                r"PROGRAM,\s*(\S+),\s*(\w+),\s*PARTS,\s*(\d+)", r
+                r"PROGRAM,\s*(\S+),\s*([^,]+),\s*PARTS,\s*(\d+)", r
             )
             if m:
                 data["program"] = m.group(1)
-                data["program_status"] = m.group(2)
+                data["program_status"] = m.group(2).strip()
                 data["parts_count"] = int(m.group(3))
 
             s = re.search(r"S\s*(\d+)", r)

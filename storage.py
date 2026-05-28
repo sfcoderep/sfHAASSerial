@@ -1,3 +1,4 @@
+
 import mysql.connector
 from mysql.connector import pooling
 from datetime import datetime
@@ -21,20 +22,43 @@ class Storage:
         cursor.execute("""
             INSERT INTO cnc_data (
                 machine_id, collected_at,
+                serial_number, software_ver, mode,
+                tool_changes, current_tool,
+                power_on_time, cycle_start_time,
                 program, program_status, parts_count,
-                current_tool, spindle_speed, feed_rate,
+                x_position, y_position, z_position,
+                a_position, b_position,
+                spindle_speed, feed_rate,
                 raw_response
             )
-            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s)
+            VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """, (
             machine_id,
             datetime.now(),
+
+            parsed.get("serial_number"),
+            parsed.get("software_ver"),
+            parsed.get("mode"),
+
+            parsed.get("tool_changes"),
+            parsed.get("current_tool"),
+
+            parsed.get("power_on_time"),
+            parsed.get("cycle_start_time"),
+
             parsed.get("program"),
             parsed.get("program_status"),
             parsed.get("parts_count"),
-            parsed.get("current_tool"),
+
+            parsed.get("x_position"),
+            parsed.get("y_position"),
+            parsed.get("z_position"),
+            parsed.get("a_position"),
+            parsed.get("b_position"),
+
             parsed.get("spindle_speed"),
             parsed.get("feed_rate"),
+
             json.dumps(raw)
         ))
 
