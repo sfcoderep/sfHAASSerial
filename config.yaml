@@ -1,0 +1,72 @@
+database:
+  host: sfmysql01.sf.local
+  user: sfwriter
+  password: CLtrMDOz2kPXDzeAAaIe
+  database: sfcncpool
+
+poll_interval: 10
+socket_timeout: 3
+socket_port: 5000
+
+profiles:
+  UMC-750: [X, Y, Z, A, B]
+  VF-2SS:  [X, Y, Z]
+  ST-15:   [X, Z]
+  ST-20Y:  [X, Z, Y]
+
+machines:
+  - id: sfcnc01srl
+    ip: 192.168.40.4
+    model: UMC-750
+
+  - id: sfcnc02srl
+    ip: 192.168.40.5
+    model: UMC-750
+
+  - id: sfcnc11srl
+    ip: 192.168.40.14
+    model: VF-2SS
+
+  - id: sfcnc12srl
+    ip: 192.168.40.15
+    model: VF-2SS
+
+  - id: sfcnc13srl
+    ip: 192.168.40.16
+    model: VF-2SS
+
+  - id: sfcnc14srl
+    ip: 192.168.40.17
+    model: VF-2SS
+
+  - id: sfcnc15srl
+    ip: 192.168.40.18
+    model: VF-2SS
+
+  - id: sfcnc16srl
+    ip: 192.168.40.19
+    model: VF-2SS
+
+  - id: sfcnc17srl
+    ip: 192.168.40.20
+    model: ST-15
+
+  - id: sfcnc18srl
+    ip: 192.168.40.21
+    model: ST-15
+
+  - id: sfcnc19srl
+    ip: 192.168.40.22
+    model: ST-20Y
+
+  - id: sfcnc20srl
+    ip: 192.168.40.23
+    model: ST-15
+
+  - id: sfcnc21srl
+    ip: 192.168.40.24
+    model: ST-15
+
+  - id: sfcnc22srl
+    ip: 192.168.40.25
+    model: ST-20Y
