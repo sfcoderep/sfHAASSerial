@@ -1,0 +1,332 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_MYSQL",
+      "label": "sfcncpool MySQL",
+      "description": "MySQL datasource pointing at sfcncpool",
+      "type": "datasource",
+      "pluginId": "mysql",
+      "pluginName": "MySQL"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana", "id": "grafana", "name": "Grafana", "version": "10.0.0" },
+    { "type": "datasource", "id": "mysql", "name": "MySQL", "version": "1.0.0" },
+    { "type": "panel", "id": "table", "name": "Table", "version": "" },
+    { "type": "panel", "id": "stat", "name": "Stat", "version": "" },
+    { "type": "panel", "id": "timeseries", "name": "Time series", "version": "" },
+    { "type": "panel", "id": "barchart", "name": "Bar chart", "version": "" },
+    { "type": "panel", "id": "gauge", "name": "Gauge", "version": "" }
+  ],
+  "title": "HAAS CNC Shop Floor",
+  "uid": "haas-shopfloor-v1",
+  "tags": ["haas", "cnc", "shopfloor"],
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "10s",
+  "time": { "from": "now-6h", "to": "now" },
+  "timepicker": {},
+  "templating": {
+    "list": [
+      {
+        "name": "machine",
+        "label": "Machine",
+        "type": "query",
+        "datasource": { "type": "mysql", "uid": "${DS_MYSQL}" },
+        "query": "SELECT machine_id FROM cnc_heartbeat ORDER BY machine_id",
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {},
+        "refresh": 2
+      }
+    ]
+  },
+  "panels": [
+
+    {
+      "id": 1,
+      "title": "Machine Status — All",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 7 },
+      "datasource": { "type": "mysql", "uid": "${DS_MYSQL}" },
+      "options": {
+        "sortBy": [{ "displayName": "Machine", "desc": false }],
+        "cellHeight": "sm"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Status" },
+            "properties": [
+              {
+                "id": "custom.displayMode",
+                "value": "color-background"
+              },
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "RUNNING":  { "color": "green",  "index": 0 } } },
+                  { "type": "value", "options": { "IDLE":     { "color": "yellow", "index": 1 } } },
+                  { "type": "value", "options": { "ALARM":    { "color": "red",    "index": 2 } } },
+                  { "type": "value", "options": { "E-STOP":   { "color": "red",    "index": 3 } } }
+                ]
+              }
+            ]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Alarms" },
+            "properties": [
+              { "id": "custom.displayMode", "value": "color-background" },
+              { "id": "thresholds", "value": {
+                  "mode": "absolute",
+                  "steps": [
+                    { "color": "green", "value": null },
+                    { "color": "red", "value": 1 }
+                  ]
+              }}
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT machine_id AS 'Machine', program_status AS 'Status', program AS 'Program', current_tool AS 'Tool', parts_count AS 'Parts', spindle_speed AS 'Spindle (RPM)', feed_rate AS 'Feed', ROUND(seconds_since_heartbeat,0) AS 'Heartbeat (s)', active_alarm_count AS 'Alarms' FROM v_machine_current WHERE machine_id REGEXP '${machine:regex}' ORDER BY machine_id",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 2,
+      "title": "Active Alarms",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 7, "w": 12, "h": 6 },
+      "datasource": { "type": "mysql", "uid": "${DS_MYSQL}" },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Machine" },
+            "properties": [{ "id": "custom.displayMode", "value": "color-background" },
+                           { "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT machine_id AS 'Machine', alarm_code AS 'Code', alarm_message AS 'Message', first_seen AS 'First Seen', TIMESTAMPDIFF(MINUTE, first_seen, NOW()) AS 'Duration (min)' FROM cnc_alarms WHERE cleared_at IS NULL ORDER BY first_seen DESC",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 3,
+      "title": "Parts Completed Today",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 7, "w": 6, "h": 3 },
+      "datasource": { "type": "mysql", "uid": "${DS_MYSQL}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "textMode": "auto", "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": { "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT SUM(JSON_EXTRACT(payload,'$.delta')) AS 'Parts Today' FROM cnc_events WHERE event_type='part_complete' AND DATE(event_time)=CURDATE() AND machine_id REGEXP '${machine:regex}'",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 4,
+      "title": "Cycles Completed Today",
+      "type": "stat",
+      "gridPos": { "x": 18, "y": 7, "w": 6, "h": 3 },
+      "datasource": { "type": "mysql", "uid": "${DS_MYSQL}" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": {
+        "defaults": { "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT COUNT(*) AS 'Cycles Today' FROM cnc_events WHERE event_type='cycle_stop' AND DATE(event_time)=CURDATE() AND machine_id REGEXP '${machine:regex}'",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 5,
+      "title": "Average Cycle Time by Program (today)",
+      "type": "barchart",
+      "gridPos": { "x": 12, "y": 10, "w": 12, "h": 6 },
+      "datasource": { "type": "mysql", "uid": "${DS_MYSQL}" },
+      "options": {
+        "xField": "Program",
+        "orientation": "horizontal"
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "color": { "mode": "palette-classic" } }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT program AS 'Program', ROUND(avg_cycle_sec,1) AS 'Avg Cycle (s)', ROUND(min_cycle_sec,1) AS 'Min', ROUND(max_cycle_sec,1) AS 'Max' FROM v_cycle_stats WHERE run_date=CURDATE() AND machine_id REGEXP '${machine:regex}' ORDER BY avg_cycle_sec DESC LIMIT 15",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 10,
+      "title": "Spindle Speed — $machine",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 7 },
+      "datasource": { "type": "mysql", "uid": "${DS_MYSQL}" },
+      "options": { "tooltip": { "mode": "multi" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "rpm",
+          "custom": { "lineInterpolation": "stepAfter", "fillOpacity": 10 }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT collected_at AS time, machine_id AS metric, spindle_speed AS value FROM cnc_data WHERE $__timeFilter(collected_at) AND machine_id REGEXP '${machine:regex}' AND spindle_speed IS NOT NULL ORDER BY collected_at",
+          "format": "time_series"
+        }
+      ]
+    },
+
+    {
+      "id": 11,
+      "title": "Feed Rate — $machine",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 7 },
+      "datasource": { "type": "mysql", "uid": "${DS_MYSQL}" },
+      "options": { "tooltip": { "mode": "multi" } },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": { "lineInterpolation": "stepAfter", "fillOpacity": 10 }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT collected_at AS time, machine_id AS metric, feed_rate AS value FROM cnc_data WHERE $__timeFilter(collected_at) AND machine_id REGEXP '${machine:regex}' AND feed_rate IS NOT NULL ORDER BY collected_at",
+          "format": "time_series"
+        }
+      ]
+    },
+
+    {
+      "id": 12,
+      "title": "Parts Count — $machine",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 23, "w": 12, "h": 7 },
+      "datasource": { "type": "mysql", "uid": "${DS_MYSQL}" },
+      "options": { "tooltip": { "mode": "multi" } },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "lineInterpolation": "stepAfter" }
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT collected_at AS time, machine_id AS metric, parts_count AS value FROM cnc_data WHERE $__timeFilter(collected_at) AND machine_id REGEXP '${machine:regex}' AND parts_count IS NOT NULL ORDER BY collected_at",
+          "format": "time_series"
+        }
+      ]
+    },
+
+    {
+      "id": 13,
+      "title": "Machine Status Timeline",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 23, "w": 12, "h": 7 },
+      "datasource": { "type": "mysql", "uid": "${DS_MYSQL}" },
+      "description": "1=RUNNING, 0=other. Shows activity as step chart.",
+      "options": { "tooltip": { "mode": "multi" } },
+      "fieldConfig": {
+        "defaults": {
+          "min": 0, "max": 1,
+          "custom": { "lineInterpolation": "stepAfter", "fillOpacity": 40 },
+          "mappings": [
+            { "type": "value", "options": { "1": { "text": "RUNNING" } } },
+            { "type": "value", "options": { "0": { "text": "IDLE/ALARM" } } }
+          ]
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT collected_at AS time, machine_id AS metric, IF(program_status='RUNNING',1,0) AS value FROM cnc_data WHERE $__timeFilter(collected_at) AND machine_id REGEXP '${machine:regex}' AND program_status IS NOT NULL ORDER BY collected_at",
+          "format": "time_series"
+        }
+      ]
+    },
+
+    {
+      "id": 20,
+      "title": "Recent Events Log",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 30, "w": 24, "h": 7 },
+      "datasource": { "type": "mysql", "uid": "${DS_MYSQL}" },
+      "options": { "sortBy": [{ "displayName": "Time", "desc": true }] },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Event" },
+            "properties": [
+              { "id": "custom.displayMode", "value": "color-background" },
+              {
+                "id": "mappings",
+                "value": [
+                  { "type": "value", "options": { "alarm_active":  { "color": "red",    "index": 0 } } },
+                  { "type": "value", "options": { "alarm_cleared": { "color": "green",  "index": 1 } } },
+                  { "type": "value", "options": { "cycle_start":   { "color": "blue",   "index": 2 } } },
+                  { "type": "value", "options": { "cycle_stop":    { "color": "purple", "index": 3 } } },
+                  { "type": "value", "options": { "part_complete": { "color": "teal",   "index": 4 } } }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT event_time AS 'Time', machine_id AS 'Machine', event_type AS 'Event', CAST(payload AS CHAR) AS 'Payload' FROM cnc_events WHERE $__timeFilter(event_time) AND machine_id REGEXP '${machine:regex}' ORDER BY event_time DESC LIMIT 200",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 21,
+      "title": "Alarm History",
+      "type": "table",
+      "gridPos": { "x": 0, "y": 37, "w": 24, "h": 6 },
+      "datasource": { "type": "mysql", "uid": "${DS_MYSQL}" },
+      "targets": [
+        {
+          "refId": "A",
+          "rawSql": "SELECT machine_id AS 'Machine', alarm_code AS 'Code', alarm_message AS 'Message', first_seen AS 'First Seen', cleared_at AS 'Cleared', TIMESTAMPDIFF(MINUTE, first_seen, IFNULL(cleared_at, NOW())) AS 'Duration (min)' FROM cnc_alarms WHERE $__timeFilter(first_seen) AND machine_id REGEXP '${machine:regex}' ORDER BY first_seen DESC",
+          "format": "table"
+        }
+      ]
+    }
+
+  ]
+}

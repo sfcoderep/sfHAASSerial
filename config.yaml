@@ -1,12 +1,46 @@
-database:
-  host: sfmysql01.sf.local
-  user: sfwriter
-  password: CLtrMDOz2kPXDzeAAaIe
-  database: sfcncpool
+# Database credentials are loaded from environment variables.
+# Set these before running:
+#   export HAAS_DB_HOST=sfmysql01.sf.local
+#   export HAAS_DB_USER=sfwriter
+#   export HAAS_DB_PASS=yourpassword
+#   export HAAS_DB_NAME=sfcncpool
+#
+# Or create a .env file (python-dotenv is in requirements.txt).
 
-poll_interval: 10
-socket_timeout: 3
-socket_port: 5000
+poll_interval: 10        # seconds between polls per machine
+socket_timeout: 3        # TCP timeout in seconds
+socket_port: 5000        # HAAS Q-code port
+
+# Historian deadband settings.
+# A row is written to cnc_data ONLY when a value changes by more than
+# its deadband, OR when force_write_interval seconds have passed.
+historian:
+  force_write_interval: 300   # always write a row at least every 5 min
+  deadbands:
+    spindle_speed:  10        # RPM
+    feed_rate:      1.0       # mm/min or ipm
+    x_position:     0.001     # inches/mm
+    y_position:     0.001
+    z_position:     0.001
+    a_position:     0.001
+    b_position:     0.001
+    parts_count:    0         # always write on change (integer)
+    tool_changes:   0
+    current_tool:   0
+
+# Alerting — set to null to disable a channel
+alerting:
+  heartbeat_timeout: 120      # seconds before a machine is considered lost
+  # Slack webhook: set HAAS_SLACK_WEBHOOK env var, or null to disable
+  slack_webhook: null
+  # Email: fill all fields, or set smtp_host to null to disable
+  smtp_host: null
+  smtp_port: 587
+  smtp_user: null
+  smtp_pass: null
+  alert_from: alerts@example.com
+  alert_to:
+    - oncall@example.com
 
 profiles:
   UMC-750: [X, Y, Z, A, B]
