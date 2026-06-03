@@ -15,6 +15,7 @@ change — deadband only applies to numeric analog values.
 """
 
 from datetime import datetime
+from parser import EXCLUDED_FIELDS
 
 # Fields treated as discrete (write on any change, no deadband)
 DISCRETE_FIELDS = {
@@ -28,6 +29,9 @@ DISCRETE_FIELDS = {
 
 def _changed(field: str, prev_val, curr_val, deadbands: dict) -> bool:
     """Return True if this field has changed enough to warrant a write."""
+    if field in EXCLUDED_FIELDS:
+        return False
+
     if field in DISCRETE_FIELDS:
         return prev_val != curr_val
 

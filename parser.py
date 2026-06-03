@@ -39,7 +39,6 @@ def parse_alarms(raw: dict) -> dict:
         r = clean(raw_response)
         if not r:
             continue
-        # Format: ALARM, 1234, SERVO ERROR X AXIS
         m = re.search(r"ALARM,\s*(\d+),\s*(.+)", r, re.I)
         if m:
             code = m.group(1)
@@ -48,25 +47,46 @@ def parse_alarms(raw: dict) -> dict:
     return alarms
 
 
+# Fields treated as discrete (write on any change, no deadband)
+DISCRETE_FIELDS = {
+    "program_status",
+    "program",
+    "mode",
+    "serial_number",
+    "software_ver",
+}
+
+# Fields excluded from historian comparison — change every poll by
+# design and are not useful for change detection
+EXCLUDED_FIELDS = {
+    "power_on_time",
+    "cycle_start_time",
+}
+
+
+def historian_should_ignore(field: str) -> bool:
+    return field in EXCLUDED_FIELDS
+
+
 def parse_responses(raw: dict) -> dict:
     data = {
-        "serial_number":   None,
-        "software_ver":    None,
-        "mode":            None,
-        "tool_changes":    None,
-        "current_tool":    None,
-        "power_on_time":   None,
+        "serial_number":    None,
+        "software_ver":     None,
+        "mode":             None,
+        "tool_changes":     None,
+        "current_tool":     None,
+        "power_on_time":    None,
         "cycle_start_time": None,
-        "program":         None,
-        "program_status":  None,
-        "parts_count":     None,
-        "x_position":      None,
-        "y_position":      None,
-        "z_position":      None,
-        "a_position":      None,
-        "b_position":      None,
-        "spindle_speed":   None,
-        "feed_rate":       None,
+        "program":          None,
+        "program_status":   None,
+        "parts_count":      None,
+        "x_position":       None,
+        "y_position":       None,
+        "z_position":       None,
+        "a_position":       None,
+        "b_position":       None,
+        "spindle_speed":    None,
+        "feed_rate":        None,
     }
 
     for qcode, raw_response in raw.items():
@@ -75,56 +95,53 @@ def parse_responses(raw: dict) -> dict:
             continue
 
         if qcode == "Q100":
-            # S/N, 12345678
             m = re.search(r"S/N,\s*(\d+)", r)
             if m:
                 data["serial_number"] = m.group(1)
 
         elif qcode == "Q101":
-            # SOFTWARE, VER 100.20.000.1150
             m = re.search(r"SOFTWARE,\s*VER\s*(\S+)", r)
             if m:
                 data["software_ver"] = m.group(1)
 
         elif qcode == "Q104":
-            # MODE, (MEM)
-            m = re.search(r"MODE,\s*\((.+?)\)", r)
+            # Handles both MODE, (MEM) and MODE, MEM
+            m = re.search(r"MODE,\s*\(?([^)]+)\)?", r)
             if m:
-                data["mode"] = m.group(1)
+                data["mode"] = m.group(1).strip()
 
         elif qcode == "Q200":
-            # TOOL CHANGES, 42
             m = re.search(r"TOOL CHANGES,\s*(\d+)", r)
             if m:
                 data["tool_changes"] = int(m.group(1))
 
         elif qcode == "Q201":
-            # USING TOOL, 5
             m = re.search(r"USING TOOL,\s*(\d+)", r)
             if m:
                 data["current_tool"] = int(m.group(1))
 
         elif qcode == "Q300":
-            # P.O. TIME, 12345:30
             m = re.search(r"P\.O\. TIME,\s*([\d:]+)", r)
             if m:
                 data["power_on_time"] = m.group(1)
 
         elif qcode == "Q301":
-            # C.S. TIME, 5678:15
             m = re.search(r"C\.S\. TIME,\s*([\d:]+)", r)
             if m:
                 data["cycle_start_time"] = m.group(1)
 
         elif qcode == "Q500":
-            # PROGRAM, O1234, RUNNING, PARTS, 47, S1200, F25.0
-            m = re.search(
-                r"PROGRAM,\s*(\S+),\s*([^,]+),\s*PARTS,\s*(\d+)", r
-            )
+            # Full NGC format: PROGRAM, O1234, RUNNING, PARTS, 47
+            m = re.search(r"PROGRAM,\s*(\S+),\s*([^,]+),\s*PARTS,\s*(\d+)", r)
             if m:
                 data["program"]        = m.group(1)
                 data["program_status"] = m.group(2).strip()
                 data["parts_count"]    = int(m.group(3))
+            else:
+                # Older M-series format: STATUS, BUSY  or  STATUS, IDLE
+                m = re.search(r"STATUS,\s*(\w+)", r)
+                if m:
+                    data["program_status"] = m.group(1).strip()
 
             s = re.search(r"S\s*(\d+)", r)
             f = re.search(r"F\s*([\d.]+)", r)
