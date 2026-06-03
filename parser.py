@@ -4,15 +4,18 @@ import re
 def clean(response):
     if not response:
         return None
+
     response = (response
         .replace("\x02", "")
         .replace("\x17", "")
         .replace("\r", "")
         .replace("\n", "")
-        .replace(">", "")
+        .replace("&gt;", ">")   # FIX: correct HTMLntity replacement
         .strip())
+
     if not response or response.upper() == "UNKNOWN":
         return None
+
     return response
 
 
@@ -34,11 +37,24 @@ def parse_macro(response):
     if not r:
         return None
 
-    m = re.search(r",\s*([-\d.]+)", r)
+    # FIX: explicitly ignore invalid macro responses
+    if "INVALID" in r:
+        return None
+
+    # FIX: correctly extract VALUE (not macro number)
+    m = re.search(r"MACRO,\s*\d+,\s*([-\d.]+)", r)
+
     if m:
         try:
-            return float(m.group(1))
-        except:
+            val = float(m.group(1))
+
+            # FIX: prevent insane values from breaking DB
+            if abs(val) > 100000:
+                return None
+
+            return val
+
+        except ValueError:
             return None
 
     return None
@@ -172,7 +188,7 @@ def parse_responses(raw: dict) -> dict:
             if axis:
                 data[f"{axis.lower()}_position"] = parse_position(r, axis)
 
-    # Macro fallback (classic controls)
+    # ✅ Macro fallback system
     macro_map = {
         "x_position_macro": "x_position",
         "y_position_macro": "y_position",

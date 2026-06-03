@@ -48,7 +48,7 @@ MACRO_QUERIES = {
     "y_position_macro": "Q600 5022",
     "z_position_macro": "Q600 5023",
     "spindle_speed_macro": "Q600 3026",
-    "feed_rate_macro": "Q600 30003",
+    "feed_rate_macro": "Q600 ",
 }
 
 state_lock = threading.Lock()
